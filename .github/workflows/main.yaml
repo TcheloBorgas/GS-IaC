@@ -38,10 +38,6 @@ jobs:
         aws-region           : us-east-1
 
 
-- name: List Directories
-  run: ls -la
-
-
     - name: Step 05 - Terraform Init
       run : terraform -chdir=./terraform/aws init -input=false
 
