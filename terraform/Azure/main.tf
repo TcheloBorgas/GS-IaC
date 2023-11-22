@@ -1,12 +1,14 @@
 resource "azurerm_resource_group" "rg-staticsite" {
-  name     = "rg-staticsite"
+  provider = azurerm.cloud
+  name     = "GS-IaC"
   location = "eastus"
 }
- 
-resource "azurerm_storage_account" "stracctstaticsite" {
-  name                     = var.stracctstaticsite
+
+resource "azurerm_storage_account" "storage_account" {
+  provider                 = azurerm.cloud
+  name                     = var.storage_account_name
   resource_group_name      = azurerm_resource_group.rg-staticsite.name
-  location                 = "eastus"
+  location                 = azurerm_resource_group.rg-staticsite.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
@@ -17,8 +19,9 @@ resource "azurerm_storage_account" "stracctstaticsite" {
 }
  
 resource "azurerm_storage_blob" "index" {
+  provider               = azurerm.cloud
   name                   = "index.html"
-  storage_account_name   = azurerm_storage_account.stracctstaticsite.name
+  storage_account_name   = azurerm_storage_account.storage_account.name
   storage_container_name = "$web"
   type                   = "Block"
   content_type           = "text/html"
@@ -26,8 +29,9 @@ resource "azurerm_storage_blob" "index" {
 }
 
 resource "azurerm_storage_blob" "error" {
+  provider               = azurerm.cloud
   name                   = "error.html"
-  storage_account_name   = azurerm_storage_account.stracctstaticsite.name
+  storage_account_name   = azurerm_storage_account.storage_account.name
   storage_container_name = "$web"
   type                   = "Block"
   content_type           = "text/html"

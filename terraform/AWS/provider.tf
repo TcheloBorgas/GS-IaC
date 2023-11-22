@@ -6,9 +6,9 @@ terraform {
     }
   }
   backend "s3" {
-    bucket         = "staticsite-vm-multicloud-001"
+    bucket         = "gs-iac"
     key            = "terraform.tfstate"
-    dynamodb_table = "staticsite-vm-multicloud-001"
+    dynamodb_table = "gs-iac"
     region         = "us-east-1"
   }
 }
