@@ -17,7 +17,7 @@ resource "azurerm_storage_account" "storage_account" {
     error_404_document = "error.html"
   }
 }
- 
+
 resource "azurerm_storage_blob" "index" {
   provider               = azurerm.cloud
   name                   = "index.html"
