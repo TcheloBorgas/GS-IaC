@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
  
     steps:
+  - name: List Terraform Directory
+    run: ls -la ./terraform
+    working-directory: .
 
     - name: Step 01 - Terraform Setup
       uses: hashicorp/setup-terraform@v2
