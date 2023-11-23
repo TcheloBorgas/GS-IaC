@@ -6,10 +6,10 @@ terraform {
     }
   }
   backend "azurerm" {
-    resource_group_name  = "nader-gs"
-    storage_account_name = "nader3568"
-    container_name       = "tfstate"
-    key                  = "terraform.tfstate"
+    resource_group_name  = "GS-IaC"
+    storage_account_name = "memorialonga"
+    container_name       = "tchelo"
+    key                  = "terraform.tchelo"
   }
 }
 
