@@ -137,7 +137,7 @@ resource "aws_instance" "instance" {
 }
 
 
-resource "aws_instance" "instance" {
+resource "aws_instance" "instance2" {
     ami                    = "ami-02e136e904f3da870"
     instance_type          = "t2.micro"
     subnet_id              = aws_subnet.sn_public.id
