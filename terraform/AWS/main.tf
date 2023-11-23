@@ -1,112 +1,192 @@
-# VPC
+data "aws_caller_identity" "current" {}
+
 resource "aws_vpc" "vpc" {
-    cidr_block           = "10.0.0.0/16"
-    enable_dns_hostnames = "true"
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = "true"
 }
 
-# INTERNET GATEWAY
 resource "aws_internet_gateway" "igw" {
-    vpc_id = aws_vpc.vpc.id
+  vpc_id = aws_vpc.vpc.id
 }
 
-# SUBNET
-resource "aws_subnet" "sn_public" {
-    vpc_id                  = aws_vpc.vpc.id
-    cidr_block              = "10.0.1.0/24"
-    map_public_ip_on_launch = "true"
-    availability_zone       = "us-east-1a"
-
+resource "aws_subnet" "sn1" {
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = "true"
+  availability_zone       = "us-east-1a"
 }
 
-# ROUTE TABLE
-resource "aws_route_table" "rt_public" {
-    vpc_id = aws_vpc.vpc.id
-
-    route {
-        cidr_block = "0.0.0.0/0"
-        gateway_id = aws_internet_gateway.igw.id
-    }
+resource "aws_subnet" "sn2" {
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = "10.0.3.0/24"
+  map_public_ip_on_launch = "true"
+  availability_zone       = "us-east-1c"
 }
 
-# SUBNET ASSOCIATION
-resource "aws_route_table_association" "rt_public_To_sn_public" {
-  subnet_id      = aws_subnet.sn_public.id
-  route_table_id = aws_route_table.rt_public.id
-}
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.vpc.id
 
-# SECURITY GROUP
-resource "aws_security_group" "sg_public" {
-    name        = "sg_public"
-    vpc_id      = aws_vpc.vpc.id
-    
-    egress {
-        from_port   = 0
-        to_port     = 0
-        protocol    = "-1"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    ingress {
-        from_port   = 0
-        to_port     = 0
-        protocol    = "-1"
-        cidr_blocks = ["10.0.0.0/16"]
-    }
-
-    ingress {
-        from_port   = 22
-        to_port     = 22
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-    
-    ingress {
-        description = "TCP/80 from All"
-        from_port   = 80
-        to_port     = 80
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-
-}
-
-
-
-# Load Balancer
-
-# Application Load Balancer
-resource "aws_lb" "alb" {
-  name               = "alb-tchelo"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.sg_public.id]
-  subnets            = [aws_subnet.sn_public.id]
-
-  enable_deletion_protection = false
-}
-
-# Target Group
-resource "aws_lb_target_group" "tg" {
-  name     = "meu-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.vpc.id
-
-  health_check {
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 3
-    interval            = 30
-    path                = "/"
-    protocol            = "HTTP"
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
   }
 }
 
-# Listener
-resource "aws_lb_listener" "listener" {
-  load_balancer_arn = aws_lb.alb.arn
-  port              = 80
+resource "aws_route_table_association" "rt_sn1" {
+  subnet_id      = aws_subnet.sn1.id
+  route_table_id = aws_route_table.rt.id
+}
+
+resource "aws_route_table_association" "rt_sn2" {
+  subnet_id      = aws_subnet.sn2.id
+  route_table_id = aws_route_table.rt.id
+}
+
+resource "aws_security_group" "sg" {
+  name        = "sg"
+  description = "sg"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_efs_file_system" "efs" {
+  #  availability_zone_name = "us-east-1a"
+  encrypted = false
+}
+
+resource "aws_efs_file_system_policy" "efs_policy" {
+  file_system_id                     = aws_efs_file_system.efs.id
+  bypass_policy_lockout_safety_check = true
+  policy                             = <<POLICY
+{
+    "Version": "2012-10-17",
+    "Id": "efs-policy-efs",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "*"
+            },
+            "Action": [
+                "elasticfilesystem:*"
+            ],
+            "Resource": [
+                "arn:aws:elasticfilesystem:us-east-1:${data.aws_caller_identity.current.account_id}:file-system/${aws_efs_file_system.efs.id}"
+            ]
+        }
+    ]
+}
+POLICY
+}
+
+resource "aws_efs_mount_target" "mount1" {
+  file_system_id  = aws_efs_file_system.efs.id
+  subnet_id       = aws_subnet.sn1.id
+  security_groups = [aws_security_group.sg.id]
+}
+
+resource "aws_efs_mount_target" "mount2" {
+  file_system_id  = aws_efs_file_system.efs.id
+  subnet_id       = aws_subnet.sn2.id
+  security_groups = [aws_security_group.sg.id]
+}
+
+
+# data "template_file" "user_data" {
+#   template = file("./scripts/user_data.sh")
+#   vars = {
+#     efs_id = aws_efs_file_system.efs.id
+#   }
+# }
+
+# RESOURCE: EC2
+# data "template_file" "user_data" {
+#     template = "${file("./scripts/user_data.sh")}"
+# }
+
+# EC2 INSTANCE 
+
+resource "aws_instance" "instance-1a" {
+    ami                    = "ami-00c39f71452c08778"
+    instance_type          = "t2.micro"
+    subnet_id              = aws_subnet.sn_pub_az1a.id
+    vpc_security_group_ids = [aws_security_group.vpc_sg_pub.id]
+    user_data              = "${base64encode(data.template_file.user_data.rendered)}"
+    key_name               = "vockey"
+}
+
+resource "aws_instance" "instance-2a" {
+    ami                    = "ami-00c39f71452c08778"
+    instance_type          = "t2.micro"
+    subnet_id              = aws_subnet.sn_pub_az2a.id
+    vpc_security_group_ids = [aws_security_group.vpc_sg_pub.id]
+    user_data              = "${base64encode(data.template_file.user_data.rendered)}"
+    key_name               = "vockey"
+}
+
+
+resource "aws_instance" "instance-1b" {
+    ami                    = "ami-00c39f71452c08778"
+    instance_type          = "t2.micro"
+    subnet_id              = aws_subnet.sn_pub_az1b.id
+    vpc_security_group_ids = [aws_security_group.vpc_sg_pub.id]
+    user_data              = "${base64encode(data.template_file.user_data.rendered)}"
+    key_name               = "vockey"
+}
+
+resource "aws_instance" "instance-2b" {
+    ami                    = "ami-00c39f71452c08778"
+    instance_type          = "t2.micro"
+    subnet_id              = aws_subnet.sn_pub_az2b.id
+    vpc_security_group_ids = [aws_security_group.vpc_sg_pub.id]
+    user_data              = "${base64encode(data.template_file.user_data.rendered)}"
+    key_name               = "vockey"
+}
+
+# LOAD BALANCER 
+
+resource "aws_lb" "lb" {
+  name               = "lb"
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.sn1.id, aws_subnet.sn2.id]
+  security_groups    = [aws_security_group.sg.id]
+}
+
+resource "aws_lb_target_group" "tg" {
+  name     = "tg"
+  protocol = "HTTP"
+  port     = "80"
+  vpc_id   = aws_vpc.vpc.id
+}
+
+resource "aws_lb_listener" "ec2_lb_listener" {
   protocol          = "HTTP"
+  port              = "80"
+  load_balancer_arn = aws_lb.lb.arn
 
   default_action {
     type             = "forward"
@@ -114,34 +194,19 @@ resource "aws_lb_listener" "listener" {
   }
 }
 
-# Target Group Attachment
-resource "aws_lb_target_group_attachment" "tga" {
-  count            = 2 # Número de instâncias EC2
-  target_group_arn = aws_lb_target_group.tg.arn
-  target_id        = aws_instance.instance[count.index].id
-  port             = 80
+resource "aws_autoscaling_group" "asg" {
+  name                = "asg"
+  desired_capacity    = "4"
+  min_size            = "2"
+  max_size            = "8"
+  vpc_zone_identifier = [aws_subnet.sn1.id, aws_subnet.sn2.id]
+  target_group_arns   = [aws_lb_target_group.tg.arn]
+  launch_template {
+    id      = aws_launch_template.lt.id
+    version = "$Latest"
+  }
+  depends_on = [
+    aws_efs_mount_target.mount1,
+    aws_efs_mount_target.mount2
+  ]
 }
-
-# EC2 INSTANCE
-
-data "template_file" "user_data" {
-    template = "${file("./scripts/user_data.sh")}"
-}
-
-resource "aws_instance" "instance" {
-    ami                    = "ami-02e136e904f3da870"
-    instance_type          = "t2.micro"
-    subnet_id              = aws_subnet.sn_public.id
-    vpc_security_group_ids = [aws_security_group.sg_public.id]
-    user_data              = "${base64encode(data.template_file.user_data.rendered)}"
-}
-
-
-resource "aws_instance" "instance2" {
-    ami                    = "ami-02e136e904f3da870"
-    instance_type          = "t2.micro"
-    subnet_id              = aws_subnet.sn_public.id
-    vpc_security_group_ids = [aws_security_group.sg_public.id]
-    user_data              = "${base64encode(data.template_file.user_data.rendered)}"
-}
-
